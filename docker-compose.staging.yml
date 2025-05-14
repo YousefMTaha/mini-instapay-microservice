@@ -1,0 +1,124 @@
+version: '3.8'
+
+services:
+  nginx:
+    image: nginx:stable
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/staging.conf:/etc/nginx/conf.d/default.conf:ro
+    restart: always
+    depends_on:
+      - user-service
+      - account-service
+      - transaction-service
+      - notification-service
+
+  mongodb:
+    image: mongo:latest
+    container_name: mongodb-staging
+    volumes:
+      - mongodb_staging_data:/data/db
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=${MONGO_USERNAME}
+      - MONGO_INITDB_ROOT_PASSWORD=${MONGO_PASSWORD}
+    restart: always
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  user-service:
+    build: 
+      context: ./user-service
+      dockerfile: Dockerfile
+      args:
+        - NODE_ENV=staging
+    env_file:
+      - ./user-service/.env.staging
+    restart: always
+    depends_on:
+      - mongodb
+    command: ["npm", "run", "start"]
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  mail-service:
+    build: 
+      context: ./mail-service
+      dockerfile: Dockerfile
+      args:
+        - NODE_ENV=staging
+    env_file:
+      - ./mail-service/.env.staging
+    restart: always
+    command: ["npm", "run", "start"]
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  notification-service:
+    build: 
+      context: ./notification-service
+      dockerfile: Dockerfile
+      args:
+        - NODE_ENV=staging
+    env_file:
+      - ./notification-service/.env.staging
+    depends_on:
+      - user-service
+    restart: always
+    command: ["npm", "run", "start"]
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  account-service:
+    build:
+      context: ./account-service
+      dockerfile: Dockerfile
+      args:
+        - NODE_ENV=staging
+    env_file:
+      - ./account-service/.env.staging
+    depends_on:
+      - user-service
+      - mongodb
+    restart: always
+    command: ["npm", "run", "start"]
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  transaction-service:
+    build:
+      context: ./transaction-service
+      dockerfile: Dockerfile
+      args:
+        - NODE_ENV=staging
+    env_file:
+      - ./transaction-service/.env.staging
+    depends_on:
+      - user-service
+      - account-service
+      - mongodb
+    restart: always
+    command: ["npm", "run", "start"]
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  mongodb_staging_data: 

@@ -1,0 +1,112 @@
+services:
+  nginx:
+    image: nginx
+    ports:
+      - "3000:80"
+    volumes:
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+    restart: always
+    depends_on:
+      - user-service
+      - account-service
+      - transaction-service
+      - notification-service
+  user-service:
+    build: ./user-service
+    env_file:
+      - ./user-service/config/.env
+    develop:
+      watch:
+        - action: sync
+          path: ./user-service
+          target: /app
+          ignore:
+            - node_modules/
+            - dist/
+        - action: rebuild
+          path: ./user-service/package.json
+
+    ports:
+      - "3001:3001"
+    restart: always
+    command: ["npm", "run", "start:dev"]
+  mail-service:
+    build: ./mail-service
+    env_file:
+      - ./mail-service/.env
+    develop:
+      watch:
+        - action: sync
+          path: ./mail-service
+          target: /app
+          ignore:
+            - node_modules/
+            - dist/
+        - action: rebuild
+          path: ./mail-service/package.json
+    ports:
+      - "3002:3002"
+    restart: always
+    command: ["npm", "run", "start:dev"]
+  notification-service:
+    build: ./notification-service
+    env_file:
+      - ./notification-service/.env
+    restart: always
+    develop:
+      watch:
+        - action: sync
+          path: ./notification-service
+          target: /app
+          ignore:
+            - node_modules/
+            - dist/
+        - action: rebuild
+          path: ./notification-service/package.json
+    ports:
+      - "3003:3003"
+    depends_on:
+      - user-service
+    command: ["npm", "run", "start:dev"]
+  account-service:
+    build: ./account-service
+    env_file:
+      - ./account-service/.env
+    restart: always
+    ports:
+      - "3004:3004"
+    develop:
+      watch:
+        - action: sync
+          path: ./account-service
+          target: /app
+          ignore:
+            - node_modules/
+            - dist/
+        - action: rebuild
+          path: ./account-service/package.json
+    depends_on:
+      - user-service
+    command: ["npm", "run", "start:dev"]
+
+  transaction-service:
+    build: ./transaction-service
+    env_file:
+      - ./transaction-service/.env
+    develop:
+      watch:
+        - action: sync
+          path: ./transaction-service
+          target: /app
+          ignore:
+            - node_modules/
+            - dist/
+        - action: rebuild
+          path: ./transaction-service/package.json
+    restart: always
+    ports:
+      - "3005:3005"
+    depends_on:
+      - user-service
+      - account-service
+    command: ["npm", "run", "start:dev"]

@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mail-service-config
+data:
+  MAIL_USER_NAME: "tyousef262@gmail.com"
+  MAIL_PASSWORD: pngu mkjw kafq ylxf
+  MAIL_SERVICE: "gmail"
+  MAIL_FROM: 'Mini-Instapay-Support"instapay@gmail.com"'

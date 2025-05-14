@@ -1,0 +1,37 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: account-service
+  labels:
+    app: account-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: account-service
+  template:
+    metadata:
+      labels:
+        app: account-service
+    spec:
+      containers:
+        - name: account-service
+          image: youseftaha11/mini-instapay:account-service
+          ports:
+            - containerPort: 3004
+          envFrom:
+            - configMapRef:
+                name: account-service-config
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: account-service
+spec:
+  selector:
+    app: account-service
+  ports:
+    - port: 3004
+      targetPort: 3004
+  type: ClusterIP

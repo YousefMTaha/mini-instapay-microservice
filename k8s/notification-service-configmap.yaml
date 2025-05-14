@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: notification-service-config
+data:
+  TOKEN_LOGIN: "THIS TOKEN FOR LOGIN"
+  DB_Cloud_URl: "mongodb+srv://tyousef262:pFRnRyJt4BhXXsRA@cluster0.cwz5mhe.mongodb.net/instapay"
