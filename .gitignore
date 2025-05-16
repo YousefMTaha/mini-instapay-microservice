@@ -12,11 +12,11 @@ build/
 out/
 
 # Environment variables
-.env
-.env.local
-.env.development
-.env.test
-.env.production
+# .env
+# .env.local
+# .env.development
+# .env.test
+# .env.production
 
 # Logs
 logs/
