@@ -14,8 +14,7 @@ import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { User, userType } from 'src/user.schema';
 import { authForOptions, authTypes, userStatus } from 'src/user.constants';
-import { MailService } from 'utils/email.service';
-
+import { MailService } from 'src/services/email.service';
 @Injectable()
 export class AuthService {
   private generateOTP: () => string;
