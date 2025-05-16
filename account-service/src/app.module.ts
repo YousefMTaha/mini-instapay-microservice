@@ -6,11 +6,13 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { JwtModule } from '@nestjs/jwt';
 import { LoggerMiddleware } from './src/middlewares/logger.middleware';
 import { BankModule } from './src/bank/bank.module';
+import { CardModule } from './src/card/card.module';
 
 @Module({
   imports: [
     AccountModule,
     BankModule,
+    CardModule,
     HttpModule.register({ global: true }),
     ConfigModule.forRoot({ isGlobal: true }),
     MongooseModule.forRoot(process.env.DB_Cloud_URl),

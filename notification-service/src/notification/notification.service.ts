@@ -5,8 +5,19 @@ import {
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
-import { EnotificationType, notificationMsg } from 'src/notification.constants';
+import { ENotificationType, notificationMsg } from 'src/notification.constants';
 import { notificationType, Notification } from 'src/notification.schema';
+import { User } from 'src/user.types';
+import { Account } from 'src/account.types';
+import { Transaction } from 'src/transaction.types';
+
+interface NotificationCreateData {
+  amount?: number;
+  email?: string;
+  _id?: Types.ObjectId;
+  userId: Types.ObjectId;
+  type: string;
+}
 
 @Injectable()
 export class NotificationService {
@@ -15,7 +26,7 @@ export class NotificationService {
     private readonly notificationModel: Model<Notification>,
   ) {}
 
-  async create(data: any) {
+  async create(data: NotificationCreateData) {
     const notification = await this.notificationModel.create({
       content: notificationMsg({
         amount: data.amount,
@@ -33,13 +44,13 @@ export class NotificationService {
     };
   }
 
-  async getAllNotfications(userId: Types.ObjectId) {
+  async getAllNotifications(userId: Types.ObjectId) {
     const notifications = await this.notificationModel
       .find({ userId })
       .sort('-createdAt');
 
     return {
-      messge: 'done',
+      message: 'done',
       status: true,
       data: notifications,
     };
@@ -53,7 +64,7 @@ export class NotificationService {
     };
   }
 
-  async findById(user: any, notificationId: Types.ObjectId) {
+  async findById(user: User, notificationId: Types.ObjectId) {
     const notification = await this.notificationModel.findOne({
       userId: user._id,
       _id: notificationId,
@@ -63,29 +74,29 @@ export class NotificationService {
     return notification;
   }
 
-  async sendOrRecieve(
-    sender: any,
-    reciever: any,
+  async sendOrReceive(
+    sender: User,
+    receiver: User,
     transactionId: Types.ObjectId,
     amount: number,
   ) {
-    if (sender._id.toString() === reciever._id.toString()) {
+    if (sender._id.toString() === receiver._id.toString()) {
       throw new BadRequestException("You can't send to your self");
     }
     // For sender
     await this.notificationModel.create({
       userId: sender._id,
-      type: EnotificationType.SEND,
-      content: notificationMsg({ amount, destination: reciever.email })['Send'],
+      type: ENotificationType.SEND,
+      content: notificationMsg({ amount, destination: receiver.email })['Send'],
       transactionId,
     });
 
-    // For reciever
+    // For receiver
     await this.notificationModel.create({
-      userId: reciever._id,
-      type: EnotificationType.RECIEVE,
+      userId: receiver._id,
+      type: ENotificationType.RECEIVE,
       content: notificationMsg({ amount, destination: sender.email })[
-        'Recieved'
+        'Received'
       ],
       transactionId,
     });
@@ -96,37 +107,37 @@ export class NotificationService {
     };
   }
 
-  async recieveRequest(
-    sender: any,
-    reciever: any,
+  async receiveRequest(
+    sender: User,
+    receiver: User,
     transactionId: Types.ObjectId,
     amount: number,
   ) {
     // For sender
     await this.notificationModel.create({
       userId: sender._id,
-      type: EnotificationType.REQUEST_SEND,
-      content: notificationMsg({ amount, destination: reciever.email })[
+      type: ENotificationType.REQUEST_SEND,
+      content: notificationMsg({ amount, destination: receiver.email })[
         'requestSend'
       ],
       transactionId,
     });
 
     return {
-      message: 'Request sended, Wating for sender approve',
+      message: 'Request sended, waiting for sender approve',
       status: true,
     };
   }
 
   async rejectSend(
     senderEmail: string,
-    recieverId: Types.ObjectId,
+    receiverId: Types.ObjectId,
     transactionId: Types.ObjectId,
   ) {
-    // For reciever
+    // For receiver
     await this.notificationModel.create({
-      userId: recieverId,
-      type: EnotificationType.REQUEST_SEND,
+      userId: receiverId,
+      type: ENotificationType.REQUEST_SEND,
       content: notificationMsg({ destination: senderEmail })['rejectSend'],
       transactionId,
     });
@@ -137,10 +148,10 @@ export class NotificationService {
     };
   }
 
-  async wrongPIN(account: any) {
+  async wrongPIN(account: Account) {
     await this.notificationModel.create({
       userId: account.userId,
-      type: EnotificationType.WRONG_PIN,
+      type: ENotificationType.WRONG_PIN,
       content: notificationMsg()['wrongPin'],
     });
 
@@ -151,45 +162,45 @@ export class NotificationService {
   }
 
   async requestRefund(
-    user: any,
-    transaction: any,
+    user: User,
+    transaction: Transaction,
     reason: string,
-    admins: any[],
+    admins: User[],
   ) {
     for (const admin of admins) {
       await this.notificationModel.create({
         transactionId: transaction._id,
         content: `'${user.email}' request to refund transaction (${transaction._id}) with ${transaction.amount} EGP for this reason: ${reason}`,
-        type: EnotificationType.REQUEST_REFUND,
+        type: ENotificationType.REQUEST_REFUND,
         userId: admin._id,
       });
     }
   }
 
-  async approveRefund(transaction: any, sender: any, reciever: any) {
+  async approveRefund(transaction: Transaction, sender: User, receiver: User) {
     await this.notificationModel.create({
       transactionId: transaction._id,
-      content: `Your request to refund ${transaction.amount} EGP from ${reciever.email} approved by admin, check your balance`,
-      type: EnotificationType.REQUEST_REFUND,
+      content: `Your request to refund ${transaction.amount} EGP from ${receiver.email} approved by admin, check your balance`,
+      type: ENotificationType.REQUEST_REFUND,
       userId: sender._id,
     });
     await this.notificationModel.create({
       transactionId: transaction._id,
-      content: `The recieved amout: ${transaction.amount} EGP that was from ${sender.email} was refunded by admin`,
-      type: EnotificationType.REQUEST_REFUND,
-      userId: reciever._id,
+      content: `The Received amount: ${transaction.amount} EGP that was from ${sender.email} was refunded by admin`,
+      type: ENotificationType.REQUEST_REFUND,
+      userId: receiver._id,
     });
   }
 
   async rejectRefund(
-    transaction: any,
+    transaction: Transaction,
     senderId: Types.ObjectId,
-    reciever: any,
+    receiver: User,
   ) {
     await this.notificationModel.create({
       transactionId: transaction._id,
-      content: `Your request to refund ${transaction.amount} EGP from ${reciever.email} rejected by admin`,
-      type: EnotificationType.REQUEST_REFUND,
+      content: `Your request to refund ${transaction.amount} EGP from ${receiver.email} rejected by admin`,
+      type: ENotificationType.REQUEST_REFUND,
       userId: senderId,
     });
   }
@@ -197,18 +208,18 @@ export class NotificationService {
   async exceedLimit(amount: number, senderId: Types.ObjectId) {
     await this.notificationModel.create({
       content: `The last transaction with ${amount} EGP was failed because you will exceed the limit`,
-      type: EnotificationType.EXCCED_LIMIT,
+      type: ENotificationType.EXCEED_LIMIT,
       userId: senderId,
     });
   }
 
   async lowBalance(cardNo: string, senderId: Types.ObjectId) {
-    const lastDigits = cardNo.substring(cardNo.length - 4);
     await this.notificationModel.create({
-      content: `NOTE! The balance of your account with card number **** **** **** ${lastDigits} below 200 EGP`,
-      type: EnotificationType.LOW_BALANCE,
+      content: `Your balance is almost reach the minimum limit! card (${cardNo.substring(
+        cardNo.length - 4,
+      )})`,
+      type: ENotificationType.LOW_BALANCE,
       userId: senderId,
-      // createdAt: Date.now() + 1000,
     });
   }
 }

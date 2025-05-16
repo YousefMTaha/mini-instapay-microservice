@@ -4,7 +4,7 @@ import {
   WebSocketGateway,
   WebSocketServer,
 } from '@nestjs/websockets';
-import { Server } from 'socket.io';
+import { Server, Socket } from 'socket.io';
 import { notificationType } from 'src/notification.schema';
 import { UserService } from 'src/user/user.service';
 
@@ -18,7 +18,7 @@ export class RealtimeGateway
 
   constructor(private userService: UserService) {}
 
-  async handleConnection(client: any, ...args: any[]) {
+  async handleConnection(client: Socket, ...args: unknown[]) {
     console.log(`connection stablished`);
 
     console.log(client.id);
@@ -30,7 +30,7 @@ export class RealtimeGateway
     await this.userService.updateSocketId(userId, socketId);
   }
 
-  handleDisconnect(client: any) {
+  handleDisconnect(client: Socket) {
     console.log(`connection discount`);
     // console.log(client);
   }

@@ -12,13 +12,21 @@ import { TransactionsService } from './transactions.service';
 import { SharedAuthGuard } from 'src/guards/auth.guard';
 import { Types } from 'mongoose';
 import { AuthorizationGuard } from 'src/guards/Authorization.guard';
-import { SendMoneyDTO } from './dto/send-money.dto';
 import { transactionType } from 'src/transaction.schema';
 import { currentUser } from 'src/decorators/current-user.decorator';
 import { UserService } from 'src/services/user.service';
 import { AccountService } from 'src/account/account.service';
-import { EaccountType, userRoles } from 'src/utils/Constants/system.constants';
+import { EAccountType, userRoles } from 'src/utils/Constants/system.constants';
 import { NotificationService } from 'src/notification/notification.service';
+import { userType } from '../services/user.types';
+import { accountType } from '../account/account.types';
+import { SendMoneyDTO } from './dto/send-money.dto';
+import { RequestReceiveMoneyDTO } from './dto/request-receive-money.dto';
+import { ConfirmReceiveDTO } from './dto/confirm-receive.dto';
+import { TransactionIdParamDTO } from './dto/transaction-id-param.dto';
+import { RequestRefundDTO } from './dto/request-refund.dto';
+import { CheckNoOfTriesDTO } from './dto/check-no-of-tries.dto';
+import { ApproveRejectRefundDTO } from './dto/approve-reject-refund.dto';
 
 @Controller('transaction')
 export class TransactionsController {
@@ -31,20 +39,21 @@ export class TransactionsController {
 
   @UseGuards(SharedAuthGuard, new AuthorizationGuard(userRoles.User))
   @Post('/send-money')
-  async sendMoney(@currentUser() sender: any, @Body() body: SendMoneyDTO) {
-    let senderAccount: any;
+  async sendMoney(@currentUser() sender: userType, @Body() body: SendMoneyDTO) {
+    let senderAccount: accountType;
     if (body.accountId) {
       senderAccount = await this.accountService.getAccountById(
         sender._id,
         body.accountId,
-        EaccountType.OWNER,
+        EAccountType.OWNER,
       );
     } else {
       senderAccount = await this.accountService.checkDefaultAcc(
         sender,
-        EaccountType.OWNER,
+        EAccountType.OWNER,
       );
     }
+    console.log({ senderAccount });
 
     await this.accountService.checkPIN(sender, senderAccount, body.PIN);
 
@@ -59,7 +68,7 @@ export class TransactionsController {
 
     const receiveAccount = await this.accountService.checkDefaultAcc(
       receiver,
-      EaccountType.RECEIVER,
+      EAccountType.RECEIVER,
     );
 
     const transaction = await this.transactionsService.sendMoney(
@@ -68,7 +77,7 @@ export class TransactionsController {
       body.amount,
     );
 
-    return this.notificationService.sendOrRecieve(
+    return this.notificationService.sendOrReceive(
       sender,
       receiver,
       transaction._id,
@@ -78,14 +87,14 @@ export class TransactionsController {
 
   @UseGuards(SharedAuthGuard, new AuthorizationGuard(userRoles.User))
   @Get('history')
-  getHistory(@currentUser() user: any) {
+  getHistory(@currentUser() user: userType) {
     return this.transactionsService.getHistory(user);
   }
 
   @UseGuards(SharedAuthGuard, new AuthorizationGuard(userRoles.User))
   @Patch('change-default')
   async changeDefault(
-    @currentUser() user: any,
+    @currentUser() user: userType,
     @Body('accountId') accountId: Types.ObjectId,
   ) {
     if (user.defaultAcc.toString() == accountId.toString()) {
@@ -94,78 +103,81 @@ export class TransactionsController {
     const account = await this.accountService.getAccountById(
       user._id,
       accountId,
-      EaccountType.OWNER,
+      EAccountType.OWNER,
     );
     return this.transactionsService.changeDefaultAcc(user, account);
   }
 
   @UseGuards(SharedAuthGuard, new AuthorizationGuard(userRoles.User))
-  @Post('request-recieve-money')
-  async reqRecieveMoney(@currentUser() reciever: any, @Body() body: any) {
-    let recieverAcc: any;
+  @Post('request-receive-money')
+  async reqReceiveMoney(
+    @currentUser() receiver: userType,
+    @Body() body: RequestReceiveMoneyDTO,
+  ) {
+    let receiverAcc: accountType;
     if (body.accountId) {
-      recieverAcc = await this.accountService.getAccountById(
-        reciever._id,
+      receiverAcc = await this.accountService.getAccountById(
+        receiver._id,
         body.accountId,
-        EaccountType.RECEIVER,
+        EAccountType.RECEIVER,
       );
     } else {
-      recieverAcc = await this.accountService.checkDefaultAcc(
-        reciever,
-        EaccountType.RECEIVER,
+      receiverAcc = await this.accountService.checkDefaultAcc(
+        receiver,
+        EAccountType.RECEIVER,
       );
     }
 
-    const sender = await this.userService.findUser({ data: body.reciverData });
+    const sender = await this.userService.findUser({ data: body.receiverData });
 
     const senderAcc = await this.accountService.checkDefaultAcc(
       sender,
-      EaccountType.SENDER,
+      EAccountType.SENDER,
     );
 
     const transaction = await this.transactionsService.receiveMoney(
       senderAcc,
-      recieverAcc,
+      receiverAcc,
       body.amount,
     );
 
-    return this.notificationService.recieveRequest(
+    return this.notificationService.receiveRequest(
       sender,
-      reciever,
+      receiver,
       transaction._id,
       transaction.amount,
     );
   }
 
   @UseGuards(SharedAuthGuard, new AuthorizationGuard(userRoles.User))
-  @Post('confirm-recieve/:transactionId')
-  async confirmRec(
-    @currentUser() sender: any,
-    @Param('transactionId') transactionId: Types.ObjectId,
-    @Body() body: any,
+  @Post('confirm-receive/:transactionId')
+  async confirmReceive(
+    @currentUser() sender: userType,
+    @Param() param: TransactionIdParamDTO,
+    @Body() body: ConfirmReceiveDTO,
   ) {
     const transaction = (await this.transactionsService.getById(
-      transactionId,
+      param.transactionId,
     )) as transactionType;
 
-    const receiverAcc = await this.userService.findUser({
-      id: transaction.accRecieverId,
-    });
+    const receiverAcc = await this.accountService.getAccount(
+      transaction.accReceiverId as Types.ObjectId,
+    );
 
     this.transactionsService.checkTransactionStatus(transaction);
     await this.transactionsService.checkTransactionOwner(transaction, sender);
 
-    let senderAccount: any;
+    let senderAccount: accountType;
     if (body.accountId) {
       senderAccount = await this.accountService.getAccountById(
         sender._id,
         body.accountId,
-        EaccountType.OWNER,
+        EAccountType.OWNER,
       );
     } else {
       senderAccount = await this.accountService.checkDefaultAcc(
         sender,
-        EaccountType.OWNER,
+        EAccountType.OWNER,
       );
     }
 
@@ -182,7 +194,7 @@ export class TransactionsController {
 
     const receiveAccount = await this.accountService.checkDefaultAcc(
       receiver,
-      EaccountType.RECEIVER,
+      EAccountType.RECEIVER,
     );
 
     await this.transactionsService.confirmReceive(
@@ -191,7 +203,7 @@ export class TransactionsController {
       transaction,
     );
 
-    return this.notificationService.sendOrRecieve(
+    return this.notificationService.sendOrReceive(
       sender,
       receiver,
       transaction._id,
@@ -200,14 +212,18 @@ export class TransactionsController {
   }
 
   @UseGuards(SharedAuthGuard, new AuthorizationGuard(userRoles.User))
-  @Post('reject-recieve/:transactionId')
-  async rejectRec(
-    @currentUser() sender: any,
-    @Param('transactionId') transactionId: Types.ObjectId,
+  @Post('reject-receive/:transactionId')
+  async rejectReceive(
+    @currentUser() sender: userType,
+    @Param() param: TransactionIdParamDTO,
   ) {
-    const transaction = await (
-      await this.transactionsService.getById(transactionId)
-    ).populate('accSenderId');
+    const transaction = (await this.transactionsService.getById(
+      param.transactionId,
+    )) as transactionType;
+
+    const receiverAcc = await this.accountService.getAccount(
+      transaction.accReceiverId as Types.ObjectId,
+    );
 
     this.transactionsService.checkTransactionStatus(transaction);
 
@@ -215,14 +231,17 @@ export class TransactionsController {
 
     return this.notificationService.rejectSend(
       sender.email,
-      transaction.accRecieverId as Types.ObjectId,
+      receiverAcc.userId as Types.ObjectId,
       transaction._id,
     );
   }
 
   @UseGuards(SharedAuthGuard, new AuthorizationGuard(userRoles.User))
   @Post('request-refund')
-  async requestRefund(@currentUser() user: any, @Body() data: any) {
+  async requestRefund(
+    @currentUser() user: userType,
+    @Body() data: RequestRefundDTO,
+  ) {
     const { transactionId, reason } = data;
     const transaction = await this.transactionsService.getById(transactionId);
 
@@ -245,7 +264,7 @@ export class TransactionsController {
   @UseGuards(SharedAuthGuard, new AuthorizationGuard(userRoles.Admin))
   @Get('admin')
   getAllTransactions() {
-    return this.transactionsService.getAllTransacions();
+    return this.transactionsService.getAllTransactions();
   }
 
   @UseGuards(SharedAuthGuard, new AuthorizationGuard(userRoles.Admin))
@@ -256,55 +275,59 @@ export class TransactionsController {
 
   @UseGuards(SharedAuthGuard, new AuthorizationGuard(userRoles.Admin))
   @Post('admin/approve-refund')
-  async approveRefund(@Body('transactionId') transationId: Types.ObjectId) {
-    const transaction = await this.transactionsService.getById(transationId);
+  async approveRefund(@Body() body: ApproveRejectRefundDTO) {
+    const transaction = await this.transactionsService.getById(
+      body.transactionId,
+    );
 
     this.transactionsService.checkForRefund(transaction);
 
-    const recieverAcc = await this.accountService.getAccount(
-      transaction.accRecieverId as Types.ObjectId,
+    const receiverAcc = await this.accountService.getAccount(
+      transaction.accReceiverId as Types.ObjectId,
     );
     const senderAcc = await this.accountService.getAccount(
       transaction.accSenderId as Types.ObjectId,
     );
 
-    const reciever = await this.userService.findUser({
-      id: recieverAcc.userId,
+    const receiver = await this.userService.findUser({
+      id: receiverAcc.userId,
     });
     const sender = await this.userService.findUser({ id: senderAcc.userId });
 
-    await this.notificationService.approveRefund(transaction, sender, reciever);
+    await this.notificationService.approveRefund(transaction, sender, receiver);
 
     return this.transactionsService.approveRefund(
       transaction,
       senderAcc,
-      recieverAcc,
+      receiverAcc,
     );
   }
 
   @UseGuards(SharedAuthGuard, new AuthorizationGuard(userRoles.Admin))
   @Post('admin/reject-refund')
-  async rejectRefund(@Body('transactionId') transationId: Types.ObjectId) {
-    const transaction = await this.transactionsService.getById(transationId);
+  async rejectRefund(@Body() body: ApproveRejectRefundDTO) {
+    const transaction = await this.transactionsService.getById(
+      body.transactionId,
+    );
 
     this.transactionsService.checkForRefund(transaction);
 
-    const recieverAcc = await this.accountService.getAccount(
-      transaction.accRecieverId as Types.ObjectId,
+    const receiverAcc = await this.accountService.getAccount(
+      transaction.accReceiverId as Types.ObjectId,
     );
     const senderAcc = await this.accountService.getAccount(
       transaction.accSenderId as Types.ObjectId,
     );
 
-    const reciever = await this.userService.findUser({
-      id: recieverAcc.userId,
+    const receiver = await this.userService.findUser({
+      id: receiverAcc.userId,
     });
     const sender = await this.userService.findUser({ id: senderAcc.userId });
 
     await this.notificationService.rejectRefund(
       transaction,
       sender._id,
-      reciever,
+      receiver,
     );
 
     return this.transactionsService.rejectRefund(transaction);
@@ -312,7 +335,7 @@ export class TransactionsController {
 
   // internal-network (docker)
   @Post('checkNoOfTries')
-  checkNoOfTries(@Body() body: any) {
+  checkNoOfTries(@Body() body: CheckNoOfTriesDTO) {
     return this.transactionsService.checkNoOfTries(body.account, body.user);
   }
 }

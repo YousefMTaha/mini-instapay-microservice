@@ -12,4 +12,4 @@ export class User {
   }>;
 }
 
-export type userType = User & Document; 
+export type userType = User & Document;

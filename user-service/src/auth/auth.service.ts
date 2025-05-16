@@ -66,6 +66,9 @@ export class AuthService {
         type: authTypes.CODE,
         authFor: authForOptions.SIGNUP,
         value: hashSync(OTP, 9),
+        expireAt: new Date().setMinutes(
+          new Date().getMinutes() + 10,
+        ) as unknown as Date,
       },
     ];
 
@@ -175,7 +178,7 @@ export class AuthService {
     }
   }
 
-  async prelogin(body: any) {
+  async preLogin(body: any) {
     const { email, password } = body;
 
     const user = await this.userModel.findOne({ email });
@@ -205,6 +208,9 @@ export class AuthService {
         type: authTypes.CODE,
         authFor: authForOptions.PRE_LOGIN,
         value: hashSync(OTP, 9),
+        expireAt: new Date().setMinutes(
+          new Date().getMinutes() + 10,
+        ) as unknown as Date,
       });
     } else {
       if (user.status === userStatus.Offline) {
@@ -316,6 +322,9 @@ export class AuthService {
         authFor: authForOptions.CHANGE_EMAIL,
         type: authTypes.CODE,
         value: hashSync(OTP, 9),
+        expireAt: new Date().setMinutes(
+          new Date().getMinutes() + 10,
+        ) as unknown as Date,
       });
     }
 
@@ -392,6 +401,9 @@ export class AuthService {
         type: authTypes.CODE,
         authFor: authForOptions.FORGET_PASSWORD,
         value: hashSync(OTP, 9),
+        expireAt: new Date().setMinutes(
+          new Date().getMinutes() + 10,
+        ) as unknown as Date,
       });
     } else {
       this.checkForSendOTPDuration(userType.expireAt);
@@ -424,7 +436,7 @@ export class AuthService {
     };
   }
 
-  async confirmOTPpassword(token: string, otp: string) {
+  async confirmOTPPassword(token: string, otp: string) {
     const { _id } = this.jwtService.verify(token, {
       secret: this.configService.get<string>('TOKEN_FORGET_PASSWORD'),
     });
@@ -476,5 +488,4 @@ export class AuthService {
       status: true,
     };
   }
-
 }

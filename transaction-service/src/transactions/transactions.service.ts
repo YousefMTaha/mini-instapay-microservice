@@ -17,6 +17,9 @@ import {
   authTypes,
 } from 'src/utils/Constants/system.constants';
 import { AccountService } from 'src/account/account.service';
+import { userType } from '../services/user.types';
+import { accountType } from '../account/account.types';
+import { FullyPopulatedTransaction } from '../transaction.types';
 
 @Injectable()
 export class TransactionsService {
@@ -38,7 +41,11 @@ export class TransactionsService {
     return transaction;
   }
 
-  async sendMoney(senderAcc: any, receiveAcc: any, amount: any) {
+  async sendMoney(
+    senderAcc: accountType,
+    receiveAcc: accountType,
+    amount: number,
+  ) {
     senderAcc.Balance -= amount;
     await this.accountService.updateAccount(senderAcc);
 
@@ -47,7 +54,7 @@ export class TransactionsService {
 
     const transaction = await this.transactionModel.create({
       amount,
-      accRecieverId: receiveAcc._id,
+      accReceiverId: receiveAcc._id,
       accSenderId: senderAcc._id,
       type: TransactionType.SEND,
     });
@@ -55,7 +62,7 @@ export class TransactionsService {
     return transaction;
   }
 
-  async checkNoOfTries(account: any, user: any) {
+  async checkNoOfTries(account: accountType, user: userType) {
     if (account.wrongPIN >= 5) {
       const emailToken = this.JwtService.sign(
         { accountId: account._id },
@@ -88,6 +95,9 @@ export class TransactionsService {
           authFor: authForOptions.INVALID_PIN,
           type: authTypes.TOKEN,
           value: emailToken,
+          expireAt: new Date().setMinutes(
+            new Date().getMinutes() + 10,
+          ) as unknown as Date,
         });
         await this.userService.updateUser(user);
       }
@@ -104,7 +114,7 @@ export class TransactionsService {
     const url = `http://localhost:3000/account/verifyAccountUser/${emailToken}`;
     await this.mailService.sendEmail({
       to: email,
-      subject: 'Reset PIN trys',
+      subject: 'Reset PIN tries',
       html: `
       <h1> You entered PIN wrong many times on instapay </h1>
       <h2> we want to ensure that the account owner was trying.</h2>
@@ -117,7 +127,7 @@ export class TransactionsService {
     };
   }
 
-  async changeDefaultAcc(user: any, account: any) {
+  async changeDefaultAcc(user: userType, account: accountType) {
     user.defaultAcc = account._id;
     await this.userService.updateUser(user);
     return {
@@ -126,8 +136,10 @@ export class TransactionsService {
     };
   }
 
-  async getHistory(user: any) {
-    const userAccounts = await this.accountService.getUserAccounts(user._id);
+  async getHistory(user: userType) {
+    const userAccounts = await this.accountService.getUserAccounts(
+      user._id.toString(),
+    );
 
     if (!userAccounts.length) {
       throw new NotFoundException('No accounts found for this user');
@@ -141,7 +153,7 @@ export class TransactionsService {
       .find({
         $or: [
           { accSenderId: { $in: userAccountIds } },
-          { accRecieverId: { $in: userAccountIds } },
+          { accReceiverId: { $in: userAccountIds } },
         ],
       })
       .sort({ createdAt: -1 });
@@ -150,9 +162,11 @@ export class TransactionsService {
       throw new NotFoundException('No transactions yet');
     }
 
+    console.log(transactions);
+
     const accountIds = [
       ...transactions.map((t) => t.accSenderId.toString()),
-      ...transactions.map((t) => t.accRecieverId.toString()),
+      ...transactions.map((t) => t.accReceiverId.toString()),
     ];
     const uniqueAccountIds = [...new Set(accountIds)] as string[];
 
@@ -181,8 +195,10 @@ export class TransactionsService {
     );
 
     const result = transactions.map((t) => {
-      const senderAcc = accountMap.get(t.accSenderId.toString()) as any;
-      const receiverAcc = accountMap.get(t.accRecieverId.toString()) as any;
+      const senderAcc = accountMap.get(t.accSenderId.toString()) as accountType;
+      const receiverAcc = accountMap.get(
+        t.accReceiverId.toString(),
+      ) as accountType;
 
       const transactionObj = t.toObject();
 
@@ -193,7 +209,7 @@ export class TransactionsService {
         amount: transactionObj.amount,
         createdAt: transactionObj.createdAt,
         sender: userMap.get(senderAcc?.userId?.toString() || ''),
-        reciever: userMap.get(receiverAcc?.userId?.toString() || ''),
+        receiver: userMap.get(receiverAcc?.userId?.toString() || ''),
       };
 
       return formattedTransaction;
@@ -201,166 +217,153 @@ export class TransactionsService {
 
     return {
       message: 'done',
-      data: result,
       status: true,
+      data: result,
     };
   }
 
-  async receiveMoney(senderAcc: any, recAcc: any, amount: number) {
-    return await this.transactionModel.create({
-      accSenderId: senderAcc,
-      accRecieverId: recAcc,
+  async receiveMoney(
+    senderAcc: accountType,
+    recAcc: accountType,
+    amount: number,
+  ) {
+    const transaction = await this.transactionModel.create({
       amount,
+      accSenderId: senderAcc._id,
+      accReceiverId: recAcc._id,
       status: TransactionStatus.PENDING,
-      type: TransactionType.RECIEVE,
+      type: TransactionType.RECEIVE,
     });
+
+    return transaction;
   }
 
   async confirmReceive(
-    senderAccount: any,
-    receiverAccount: any,
+    senderAccount: accountType,
+    receiverAccount: accountType,
     transaction: transactionType,
   ) {
     senderAccount.Balance -= transaction.amount;
-    await senderAccount.save();
+    await this.accountService.updateAccount(senderAccount);
 
     receiverAccount.Balance += transaction.amount;
-    await receiverAccount.save();
+    await this.accountService.updateAccount(receiverAccount);
 
     transaction.status = TransactionStatus.SUCCESS;
-    transaction.accSenderId = senderAccount._id;
     await transaction.save();
+
+    return { message: 'done', status: true };
   }
 
-  async rejectReceive(sender: any, transaction: transactionType) {
-    const senderAcc = transaction.accSenderId as any;
-    if (senderAcc.userId.toString() !== sender._id.toString()) {
-      throw new ForbiddenException("You aren't the sender of this transaction");
-    }
-
+  async rejectReceive(sender: userType, transaction: transactionType) {
     transaction.status = TransactionStatus.FAILED;
     await transaction.save();
 
-    return {
-      message: 'done',
-      status: true,
-    };
+    return { message: 'done', status: true };
   }
 
   checkTransactionStatus(transaction: transactionType) {
-    if (transaction.status != TransactionStatus.PENDING) {
-      throw new BadRequestException('This transaction was closed');
+    if (transaction.status !== TransactionStatus.PENDING) {
+      throw new BadRequestException(
+        `Transaction already ${transaction.status}`,
+      );
     }
   }
 
-  async checkTransactionOwner(transaction: transactionType, sender: any) {
-    const transactionSenderAcc = (await transaction.populate('accSenderId'))
-      .accSenderId as any;
+  async checkTransactionOwner(transaction: transactionType, sender: userType) {
+    const account = await this.accountService.getAccountById(
+      sender._id,
+      transaction.accSenderId,
+      'OWNER',
+    );
 
-    if (transactionSenderAcc.userId.toString() != sender._id.toString()) {
-      throw new ForbiddenException("You aren't the sender of this transaction");
+    if (!account) {
+      throw new ForbiddenException('Not allowed to access this transaction');
     }
   }
 
-  async getAllTransacions() {
-    return await this.transactionModel.aggregate([
-      {
-        $lookup: {
-          from: 'accounts',
-          localField: 'accSenderId',
-          foreignField: '_id',
-          as: 'accSenderId',
+  async getAllTransactions() {
+    const transactions = await this.transactionModel
+      .find()
+      .sort({ createdAt: -1 });
+
+    const accountIds = [
+      ...transactions.map((t) => t.accSenderId.toString()),
+      ...transactions.map((t) => t.accReceiverId.toString()),
+    ];
+    const uniqueAccountIds = [...new Set(accountIds)];
+
+    const accounts =
+      await this.accountService.getManyAccounts(uniqueAccountIds);
+
+    const userIds = accounts.map((acc) => acc.userId.toString());
+    const uniqueUserIds = [...new Set(userIds)];
+
+    const users = await this.userService.getManyUsers(uniqueUserIds);
+
+    const accountMap = new Map(
+      accounts.map((acc) => [acc._id.toString(), acc]),
+    );
+    const userMap = new Map(
+      users.map((user) => [
+        user._id.toString(),
+        {
+          _id: user._id,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          email: user.email,
+          userName: `${user.firstName} ${user.lastName}`,
         },
-      },
-      { $unwind: '$accSenderId' },
-      {
-        $lookup: {
-          from: 'users',
-          foreignField: '_id',
-          localField: 'accSenderId.userId',
-          as: 'sender',
-          pipeline: [
-            {
-              $project: {
-                firstName: 1,
-                lastName: 1,
-                email: 1,
-                userName: { $concat: ['$firstName', ' ', '$lastName'] },
-                _id: 1,
-              },
-            },
-          ],
-        },
-      },
-      {
-        $lookup: {
-          from: 'accounts',
-          localField: 'accRecieverId',
-          foreignField: '_id',
-          as: 'accRecieverId',
-        },
-      },
-      { $unwind: '$accRecieverId' },
-      {
-        $lookup: {
-          from: 'users',
-          foreignField: '_id',
-          localField: 'accRecieverId.userId',
-          as: 'reciever',
-          pipeline: [
-            {
-              $project: {
-                firstName: 1,
-                lastName: 1,
-                email: 1,
-                userName: { $concat: ['$firstName', ' ', '$lastName'] },
-                _id: 1,
-              },
-            },
-          ],
-        },
-      },
-      { $unwind: '$sender' },
-      { $unwind: '$reciever' },
-      {
-        $project: {
-          accSenderId: 0,
-          accRecieverId: 0,
-        },
-      },
-      {
-        $sort: { createdAt: -1 },
-      },
-    ]);
+      ]),
+    );
+
+    const formattedTransactions = transactions.map((transaction) => {
+      const senderAccount = accountMap.get(transaction.accSenderId.toString());
+      const receiverAccount = accountMap.get(
+        transaction.accReceiverId.toString(),
+      );
+
+      const sender = userMap.get(senderAccount?.userId?.toString());
+      const receiver = userMap.get(receiverAccount?.userId?.toString());
+
+      return {
+        _id: transaction._id,
+        status: transaction.status,
+        type: transaction.type,
+        amount: transaction.amount,
+        createdAt: transaction.createdAt,
+        sender,
+        receiver,
+      };
+    });
+
+    return formattedTransactions;
   }
 
   async suspiciousTransaction(transactionId: Types.ObjectId) {
-    const transaction = await this.transactionModel
-      .findById(transactionId)
-      .populate({
-        path: 'accSenderId',
-        populate: {
-          path: 'userId',
-        },
-      })
-      .populate({
-        path: 'accRecieverId',
-        populate: {
-          path: 'userId',
-        },
-      });
+    const transaction = await this.transactionModel.findById(transactionId);
 
     if (!transaction) throw new NotFoundException('invalid transaction id');
     if (transaction.status == TransactionStatus.SUSPICIOUS)
-      throw new BadRequestException('tansaction already reported before');
-    const senderAccount = transaction.accSenderId as any;
-    const sender = senderAccount.userId as any;
+      throw new BadRequestException('transaction already reported before');
 
-    const recieverAccount = transaction.accRecieverId as any;
-    const reciever = recieverAccount.userId as any;
+    const senderAccount = await this.accountService.getAccount(
+      transaction.accSenderId,
+    );
+    const receiverAccount = await this.accountService.getAccount(
+      transaction.accReceiverId,
+    );
+
+    // Get the sender and receiver user details
+    const senderUser = await this.userService.findUser({
+      id: senderAccount.userId,
+    });
+    const receiverUser = await this.userService.findUser({
+      id: receiverAccount.userId,
+    });
 
     await this.mailService.sendEmail({
-      to: sender.email,
+      to: senderUser.email,
       subject: 'Suspicious Transaction',
       html: `
       <!DOCTYPE html>
@@ -422,7 +425,7 @@ export class TransactionsService {
         
         <div class="report-content">
             <p>Your transaction with this information was reported as <span class="highlight">suspicious</span>:</p>
-            <p><span class="info">Send to:</span> ${reciever.email}</p>
+            <p><span class="info">Send to:</span> ${receiverUser.email}</p>
             <p><span class="info">Amount:</span> ${transaction.amount} EGP</p>
             <p><span class="info">Send time:</span> ${transaction.createdAt}</p>
         </div>
@@ -450,7 +453,7 @@ export class TransactionsService {
     transaction.status = TransactionStatus.REFUNDING;
     await transaction.save();
     return {
-      message: 'Waiting for admin to aprove',
+      message: 'Waiting for admin to approve',
       status: true,
     };
   }
@@ -474,14 +477,14 @@ export class TransactionsService {
 
   async approveRefund(
     transaction: transactionType,
-    senderAcc: any,
-    recieverAcc: any,
+    senderAcc: accountType,
+    receiverAcc: accountType,
   ) {
     senderAcc.Balance += transaction.amount;
-    await senderAcc.save();
+    await this.accountService.updateAccount(senderAcc);
 
-    recieverAcc.Balance -= transaction.amount;
-    await recieverAcc.save();
+    receiverAcc.Balance -= transaction.amount;
+    await this.accountService.updateAccount(receiverAcc);
 
     transaction.status = TransactionStatus.REFUNDED;
     await transaction.save();

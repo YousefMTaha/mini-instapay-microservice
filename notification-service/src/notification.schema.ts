@@ -6,7 +6,7 @@ import { Document, Types } from 'mongoose';
 import { catchError, firstValueFrom } from 'rxjs';
 import { RealtimeGateway } from './realtime/realtime.gateway';
 import { RealtimeModule } from './realtime/realtime.module';
-import { EnotificationType } from './notification.constants';
+import { ENotificationType } from './notification.constants';
 
 @Schema({ versionKey: false, timestamps: { updatedAt: false } })
 export class Notification {
@@ -16,7 +16,7 @@ export class Notification {
   @Prop({ ref: 'User', required: true })
   userId: Types.ObjectId;
 
-  @Prop({ enum: EnotificationType, required: true })
+  @Prop({ enum: ENotificationType, required: true })
   type: string;
 
   @Prop({ ref: 'Transaction' })

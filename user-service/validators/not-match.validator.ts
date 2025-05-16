@@ -23,7 +23,7 @@ export function notMatch(
       constraints: [property],
       options: validationOptions,
       validator: {
-        validate(value: any, args: ValidationArguments) {
+        validate(value: string, args: ValidationArguments) {
           return value !== args.object[args.constraints[0]];
         },
         defaultMessage(validationArguments) {

@@ -12,7 +12,7 @@ export function checkCardYear(validationOptions?: ValidationOptions) {
       propertyName: propertyName,
       options: validationOptions,
       validator: {
-        validate(value: any, args: ValidationArguments) {
+        validate(value: number, args: ValidationArguments) {
           return value >= new Date().getFullYear();
         },
         defaultMessage(validationArguments) {

@@ -36,7 +36,7 @@ export class AuthController {
 
   @Post('preLogin')
   preLogin(@Body() body: PreLoginDTO) {
-    return this.authService.prelogin(body);
+    return this.authService.preLogin(body);
   }
 
   @Post('login')
@@ -51,7 +51,7 @@ export class AuthController {
 
   @Post('confirm-otp-forget')
   confirmOTPpassword(@Body() body: ConfirmOTPpasswordDTO) {
-    return this.authService.confirmOTPpassword(body.token, body.otp);
+    return this.authService.confirmOTPPassword(body.token, body.otp);
   }
 
   @Post('forget-password')

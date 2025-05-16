@@ -20,6 +20,23 @@ import { userType } from 'src/user.schema';
 import { currentUser } from 'decorators/current-user.decorator';
 import { EmailDTO } from 'utils/common/common.dto';
 import { userRoles } from 'src/user.constants';
+import { Types } from 'mongoose';
+
+interface UpdateSocketIdDTO {
+  userId: string;
+  socketId: string;
+}
+
+interface FindUserDTO {
+  id?: Types.ObjectId;
+  email?: string;
+  data?: string;
+}
+
+interface GetManyUsersDTO {
+  ids: string[];
+}
+
 @Controller('user')
 export class UserController {
   constructor(
@@ -119,28 +136,28 @@ export class UserController {
   }
 
   @Post('updateSocketId')
-  updateSocketId(@Body() body: any) {
+  updateSocketId(@Body() body: UpdateSocketIdDTO) {
     return this.userService.updateSocketId(body.userId, body.socketId);
   }
 
-  @Post('getAllAdmins')
+  @Get('getAllAdmins')
   getAllAdmins() {
     return this.userService.getAllAdmins();
   }
 
   // transaction-service
   @Post('findUser')
-  findUser(@Body() body: any) {
+  findUser(@Body() body: FindUserDTO) {
     return this.userService.findUser(body);
   }
 
   @Put('updateUserMicroservice')
-  async updateUserMicroservice(@Body() userData: any) {
+  async updateUserMicroservice(@Body() userData: Partial<userType>) {
     return this.userService.updateUserData(userData);
   }
 
   @Post('many-by-ids')
-  getManyUsers(@Body() body: any) {
+  getManyUsers(@Body() body: GetManyUsersDTO) {
     return this.userService.getManyUsers(body.ids);
   }
 }

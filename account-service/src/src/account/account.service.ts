@@ -16,7 +16,7 @@ import { cardType } from '../schemas/card.schema';
 import { TransactionService } from '../transaction/transaction.service';
 import { NotificationService } from '../notification/notification.service';
 import {
-  EaccountType,
+  EAccountType,
   authTypes,
   authForOptions,
   accountErrMsg,
@@ -24,7 +24,11 @@ import {
 import { MailService } from 'src/utils/email.service';
 import { ONE_WEEK_MILLI, limitType, ONE_DAY_MILLI } from 'src/account.constant';
 import { checkForSendOTPDuration } from 'src/utils/common/common.methods';
-
+import { User } from '../schemas/user.schema';
+import { userType } from '../schemas/user.schema';
+import { AddAccountDTO } from './dto/add-account.dto';
+import { UpdateAccountDTO } from './dto/update-account.dto';
+import { UserService } from '../services/user.service';
 @Injectable()
 export class AccountService {
   constructor(
@@ -34,9 +38,10 @@ export class AccountService {
     private readonly configService: ConfigService,
     private readonly notificationService: NotificationService,
     private readonly mailService: MailService,
+    private readonly userService: UserService,
   ) {}
 
-  async getAllAccounts(user: any) {
+  async getAllAccounts(user: userType) {
     const accounts = await this._accountModel
       .find({ userId: user._id, _id: { $ne: user.defaultAcc } })
       .populate('cardId', 'cardNo')
@@ -45,12 +50,14 @@ export class AccountService {
 
     if (!accounts.length) throw new NotFoundException('No account exists');
 
+    console.log(accounts);
+
     const data = accounts.map((ele) => {
       return {
         //@ts-ignore
         ...ele._doc,
         //@ts-ignore
-        cardNo: ele._doc.cardId.cardNo.substring(ele.cardId.cardNo.length - 4),
+        cardNo: ele._doc.cardId?.cardNo.substring(ele.cardId.cardNo.length - 4),
         cardId: undefined,
       };
     });
@@ -62,7 +69,7 @@ export class AccountService {
     };
   }
 
-  async addAccount(body: any, user: any, card: cardType) {
+  async addAccount(body: AddAccountDTO, user: userType, card: cardType) {
     const account = await this._accountModel.create({
       bankId: body.bankId,
       cardId: card._id,
@@ -73,7 +80,7 @@ export class AccountService {
 
     if (!user.defaultAcc) {
       user.defaultAcc = account._id;
-      await user.save();
+      await this.userService.updateUser(user);
     }
 
     return {
@@ -82,7 +89,7 @@ export class AccountService {
     };
   }
 
-  async updatePIN(body: any, account: accountType) {
+  async updatePIN(body: { newPIN: string }, account: accountType) {
     account.PIN = hashSync(body.newPIN, 10);
     await account.save();
 
@@ -92,12 +99,12 @@ export class AccountService {
     };
   }
 
-  async deleteAccount(user: any, account: accountType) {
+  async deleteAccount(user: userType, account: accountType) {
     await account.deleteOne();
 
     if (user.defaultAcc.toString() == account._id.toString()) {
       user.defaultAcc = undefined;
-      await user.save();
+      await this.userService.updateUser(user);
     }
     return {
       message: 'account deleted',
@@ -105,16 +112,13 @@ export class AccountService {
     };
   }
 
-  async checkPIN(user: any, account: accountType, PIN: string) {
+  async checkPIN(user: userType, account: accountType, PIN: string) {
     if (account.wrongPIN == 4) {
       await this.notificationService.wrongPIN(account);
     }
 
-    // await this.transactionService.checkNoOfTries(account, user);
+    await this.transactionService.checkNoOfTries(account, user);
     if (!compareSync(PIN, account.PIN)) {
-      console.log(PIN, account.PIN);
-
-      // account.wrongPIN++;
       await this._accountModel.updateOne(
         { _id: account._id },
         { $inc: { wrongPIN: 1 } },
@@ -139,10 +143,16 @@ export class AccountService {
     return account;
   }
 
-  async checkDefaultAcc(user: any, errorMsg: string): Promise<accountType> {
+  async checkDefaultAcc(
+    user: userType,
+    errorMsg: string,
+  ): Promise<accountType> {
     if (!user.defaultAcc) throw new NotFoundException(accountErrMsg(errorMsg));
+    
     const account = await this._accountModel.findById(user.defaultAcc);
-
+    console.log(user.defaultAcc);
+    console.log({accounts:account});
+    
     return account;
   }
 
@@ -159,7 +169,7 @@ export class AccountService {
     return account;
   }
 
-  async getDefault(user: any) {
+  async getDefault(user: userType) {
     if (!user.defaultAcc)
       throw new NotFoundException(`No default acc yet, Add one account`);
     const data = await user.populate('defaultAcc', ' bankId cardId');
@@ -218,26 +228,29 @@ export class AccountService {
     };
   }
 
-  async forgetOTPMail(user: any, account: accountType) {
+  async forgetOTPMail(user: userType, account: accountType) {
     const generateOTP = customAlphabet('0123456789', 6);
 
     const OTP = generateOTP();
 
-    const any = user.authTypes.find(
+    const authItem = user.authTypes.find(
       (ele) =>
         ele.authFor == authForOptions.FORGET_PIN && ele.type === authTypes.CODE,
     );
 
-    if (!any) {
+    if (!authItem) {
       user.authTypes.push({
         type: authTypes.CODE,
         authFor: authForOptions.FORGET_PIN,
         value: hashSync(OTP, 9),
+        expireAt: new Date().setMinutes(
+          new Date().getMinutes() + 10,
+        ) as unknown as Date,
       });
     } else {
-      checkForSendOTPDuration(any.expireAt);
-      any.value = hashSync(OTP, 9);
-      any.expireAt = new Date().setMinutes(
+      checkForSendOTPDuration(authItem.expireAt);
+      authItem.value = hashSync(OTP, 9);
+      authItem.expireAt = new Date().setMinutes(
         new Date().getMinutes() + 10,
       ) as unknown as Date;
     }
@@ -251,83 +264,78 @@ export class AccountService {
                 `,
     });
 
-    const token = this.JwtService.sign(
-      { _id: user._id, accountId: account._id },
-      { secret: this.configService.get<string>('TOKEN_FORGET_PIN') },
-    );
-
-    await user.save();
-
     return {
-      message: 'Email Sended',
+      message: 'OTP sent to your mail',
       status: true,
-      token,
     };
   }
 
-  async confirmOTPForgetPIN(token: string, user: any, otp: string) {
-    const { accountId } = this.JwtService.verify(token, {
-      secret: this.configService.get<string>('TOKEN_FORGET_PIN'),
-    });
+  async confirmOTPForgetPIN(token: string, user: userType, otp: string) {
+    const foundAuthType = user.authTypes.find(
+      (ele) =>
+        ele.authFor == authForOptions.FORGET_PIN && ele.type === authTypes.CODE,
+    );
 
-    for (let type of user.authTypes) {
-      if (
-        type.authFor === authForOptions.FORGET_PIN &&
-        type.type === authTypes.CODE
-      ) {
-        if (!compareSync(otp.toString(), type.value || '1'))
-          throw new BadRequestException('Invalid OTP');
-
-        if (type.expireAt < new Date())
-          throw new BadRequestException('OTP Expired');
-
-        type.value = undefined;
-        break;
-      }
+    if (!foundAuthType) {
+      throw new BadRequestException('Invalid request, send OTP first');
     }
 
-    const resToken = this.JwtService.sign(
-      { accountId: accountId },
-      { secret: this.configService.get<string>('TOKEN_CONFIRM_OTP_FORGET') },
+    if (foundAuthType.expireAt < new Date()) {
+      throw new BadRequestException('OTP expired request new one');
+    }
+
+    if (!compareSync(otp, foundAuthType.value)) {
+      throw new BadRequestException('Invalid OTP');
+    }
+
+    const forgetToken = this.JwtService.sign(
+      {},
+      {
+        secret: this.configService.get<string>('FORGET_PIN_TOKEN'),
+        expiresIn: '10m',
+      },
     );
 
     return {
-      message: 'Done',
+      message: 'valid OTP',
       status: true,
-      token: resToken,
+      data: { token: forgetToken },
     };
   }
 
-  async forgetPIN(user: any, token: string, PIN: string) {
-    const { accountId } = this.JwtService.verify(token, {
-      secret: this.configService.get<string>('TOKEN_CONFIRM_OTP_FORGET'),
-    });
+  async forgetPIN(user: userType, token: string, PIN: string) {
+    try {
+      this.JwtService.verify(token, {
+        secret: this.configService.get<string>('FORGET_PIN_TOKEN'),
+      });
 
-    const account = await this.getAccountById(
-      user._id,
-      accountId,
-      EaccountType.OWNER,
-    );
+      const account = await this._accountModel.findOne({
+        userId: user._id,
+      });
 
-    await account.updateOne({ PIN: hashSync(PIN, 10) });
+      if (!account) throw new NotFoundException('account not found');
 
-    return {
-      message: 'updated',
-      status: true,
-    };
+      account.PIN = hashSync(PIN, 9);
+      await account.save();
+
+      return {
+        message: 'PIN Updated successfully',
+        status: true,
+      };
+    } catch (error) {
+      throw new BadRequestException('Invalid token or expired');
+    }
   }
 
-  async updateAccount(body: any) {
-    return await this._accountModel.findByIdAndUpdate({ _id: body._id }, body, {
-      new: true,
-    });
+  async updateAccount(body: UpdateAccountDTO) {
+    return this._accountModel.findByIdAndUpdate(body._id, body);
   }
 
   async getManyAccounts(ids: string[]) {
-    return await this._accountModel.find({ _id: { $in: ids } });
+    return this._accountModel.find({ _id: { $in: ids } });
   }
 
-  async getUserAccounts(userId: string) {
-    return await this._accountModel.find({ userId });
+  async getUserAccounts(userId: Types.ObjectId) {
+    return this._accountModel.find({ userId });
   }
 }

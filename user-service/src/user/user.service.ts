@@ -10,14 +10,18 @@ import { hashSync, compareSync } from 'bcryptjs';
 import { UpdateUserDTO } from './dto/update-user.dto';
 import { UpdatePasswordDTO } from './dto/update-password.dto';
 import { User, userType } from 'src/user.schema';
-import { MailService } from 'utils/email.service';
+import { MailService } from 'src/services/email.service';
 import { userRoles, userStatus } from 'src/user.constants';
+import { HttpService } from '@nestjs/axios';
+import { AccountService } from 'src/services/account.service';
 
 @Injectable()
 export class UserService {
   constructor(
     @InjectModel(User.name) private readonly userModel: Model<User>,
     private mailService: MailService,
+    private httpService: HttpService,
+    private accountService: AccountService,
   ) {}
 
   /**
@@ -27,25 +31,18 @@ export class UserService {
    */
   async getUser(user: userType) {
     if (user.defaultAcc) {
-      await user.populate({
-        path: 'defaultAcc',
-        select: 'bankId cardId',
-        populate: [
-          {
-            path: 'bankId',
-          },
-          {
-            path: 'cardId',
-            select: 'cardNo',
-          },
-        ],
-      });
+      const account = await this.accountService.getAccount(user.defaultAcc);
+      const card = await this.accountService.getCard(account.cardId);
+      const bank = await this.accountService.getBank(account.bankId);
+      if (card && card.cardNo) {
+        card.cardNo = card.cardNo.substring(card.cardNo.length - 4);
+      }
 
-      //@ts-ignore
-      user.defaultAcc.cardId.cardNo = user.defaultAcc.cardId.cardNo.substring(
-        //@ts-ignore
-        user.defaultAcc.cardId.cardNo.length - 4,
-      );
+      user.defaultAcc = {
+        ...account,
+        bankId: bank,
+        cardId: card,
+      };
     }
 
     return {
@@ -211,7 +208,7 @@ export class UserService {
     return await this.userModel.findById(_id);
   }
 
-  async updateUserData(userData: any) {
+  async updateUserData(userData: Partial<userType>) {
     return await this.userModel.updateOne({ _id: userData._id }, userData);
   }
 

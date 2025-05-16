@@ -6,6 +6,12 @@ import {
   HttpStatus,
 } from '@nestjs/common';
 
+interface ErrorResponse {
+  message?: string | string[];
+  status?: boolean;
+  statusCode?: number;
+}
+
 @Catch()
 export class UnHandledExceptions implements ExceptionFilter {
   catch(exception: unknown, host: ArgumentsHost): void {
@@ -24,7 +30,12 @@ export class UnHandledExceptions implements ExceptionFilter {
         typeof responseMessage === 'object' &&
         responseMessage !== null
       ) {
-        message = (responseMessage as any).message || message;
+        const typedResponse = responseMessage as ErrorResponse;
+        message = typeof typedResponse.message === 'string' 
+          ? typedResponse.message 
+          : Array.isArray(typedResponse.message) 
+            ? typedResponse.message.join(', ')
+            : message;
       }
     } else if (exception instanceof Error) {
       message = exception.message;

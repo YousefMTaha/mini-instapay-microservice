@@ -1,6 +1,9 @@
 import { HttpService } from '@nestjs/axios';
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { catchError, firstValueFrom } from 'rxjs';
+import { Types } from 'mongoose';
+import { userType } from '../services/user.types';
+import { transactionType } from '../transaction.schema';
 
 @Injectable()
 export class NotificationService {
@@ -8,10 +11,10 @@ export class NotificationService {
 
   constructor(private readonly httpService: HttpService) {}
 
-  async lowBalance(cardNo, userId) {
+  async lowBalance(cardNo: string, userId: Types.ObjectId) {
     const { data } = await firstValueFrom(
       this.httpService
-        .post(`${this.baseUrl}/low-balance`, { cardNo, userId })
+        .post(`${this.baseUrl}/lowBalance`, { cardNo, userId })
         .pipe(
           catchError((error) => {
             const errorMessage = error.response?.data?.message || error.message;
@@ -21,7 +24,12 @@ export class NotificationService {
     );
     return data;
   }
-  async recieveRequest(sender, receiver, transactionId, amount) {
+  async receiveRequest(
+    sender: userType,
+    receiver: userType,
+    transactionId: Types.ObjectId,
+    amount: number,
+  ) {
     const { data } = await firstValueFrom(
       this.httpService
         .post(`${this.baseUrl}/receiveRequest`, {
@@ -39,9 +47,12 @@ export class NotificationService {
     );
     return data;
   }
-  async sendOrRecieve(sender, receiver, transactionId, amount) {
-    console.log(sender, receiver, transactionId, amount);
-    
+  async sendOrReceive(
+    sender: userType,
+    receiver: userType,
+    transactionId: Types.ObjectId,
+    amount: number,
+  ) {
     const { data } = await firstValueFrom(
       this.httpService
         .post(`${this.baseUrl}/sendOrReceive`, {
@@ -59,12 +70,16 @@ export class NotificationService {
     );
     return data;
   }
-  async rejectSend(email, accReceiverId, transactionId) {
+  async rejectSend(
+    email: string,
+    receiverId: Types.ObjectId,
+    transactionId: Types.ObjectId,
+  ) {
     const { data } = await firstValueFrom(
       this.httpService
         .post(`${this.baseUrl}/rejectSend`, {
           email,
-          accReceiverId,
+          receiverId,
           transactionId,
         })
         .pipe(
@@ -76,7 +91,12 @@ export class NotificationService {
     );
     return data;
   }
-  async requestRefund(user, transaction, reason, admins) {
+  async requestRefund(
+    user: userType,
+    transaction: transactionType,
+    reason: string,
+    admins: userType[],
+  ) {
     const { data } = await firstValueFrom(
       this.httpService
         .post(`${this.baseUrl}/requestRefund`, {
@@ -94,7 +114,11 @@ export class NotificationService {
     );
     return data;
   }
-  async approveRefund(transaction, sender, receiver) {
+  async approveRefund(
+    transaction: transactionType,
+    sender: userType,
+    receiver: userType,
+  ) {
     const { data } = await firstValueFrom(
       this.httpService
         .post(`${this.baseUrl}/approveRefund`, {
@@ -111,7 +135,11 @@ export class NotificationService {
     );
     return data;
   }
-  async rejectRefund(transaction, sender, receiver) {
+  async rejectRefund(
+    transaction: transactionType,
+    sender: userType,
+    receiver: userType,
+  ) {
     const { data } = await firstValueFrom(
       this.httpService
         .post(`${this.baseUrl}/rejectRefund`, {

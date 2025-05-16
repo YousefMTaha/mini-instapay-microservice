@@ -27,7 +27,7 @@ export class Transaction {
   accSenderId: Types.ObjectId;
 
   @Prop({ type: Types.ObjectId, ref: 'Account', required: true })
-  accRecieverId: Types.ObjectId;
+  accReceiverId: Types.ObjectId;
 
   readonly _id: Types.ObjectId;
   readonly createdAt?: Date;

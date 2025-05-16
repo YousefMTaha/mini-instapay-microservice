@@ -2,13 +2,15 @@ import { HttpService } from '@nestjs/axios';
 import { Injectable } from '@nestjs/common';
 import { catchError, firstValueFrom } from 'rxjs';
 import { BadRequestException } from '@nestjs/common';
+import { Types } from 'mongoose';
+
 @Injectable()
 export class CardService {
   constructor(private readonly httpService: HttpService) {}
 
   private baseUrl = 'http://account-service:3004/card';
 
-  async getCard(cardId: string) {
+  async getCard(cardId: Types.ObjectId) {
     const { data } = await firstValueFrom(
       this.httpService
         .post(`${this.baseUrl}/getCardById`, {

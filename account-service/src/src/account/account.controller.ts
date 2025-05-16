@@ -24,7 +24,19 @@ import {
   ObjectIdDTO,
   PINDTO,
 } from 'src/utils/common/common.dto';
-import { EaccountType } from 'src/utils/Constants/system.constants';
+import { EAccountType } from 'src/utils/Constants/system.constants';
+// DTO imports for internal API endpoints
+import { GetAccountByIdDTO } from './dto/get-account-by-id.dto';
+import { CheckDefaultAccDTO } from './dto/check-default-acc.dto';
+import { CheckPinDTO } from './dto/check-pin.dto';
+import { CheckLimitDTO } from './dto/check-limit.dto';
+import { GetAccountDTO } from './dto/get-account.dto';
+import { UpdateAccountDTO } from './dto/update-account.dto';
+import { GetManyAccountsDTO } from './dto/get-many-accounts.dto';
+import { GetUserAccountsDTO } from './dto/get-user-accounts.dto';
+// Import types
+import { userType } from '../schemas/user.schema';
+import { accountType } from '../schemas/account.schema';
 
 @Controller('account')
 export class AccountController {
@@ -39,7 +51,7 @@ export class AccountController {
    */
   @UseGuards(SharedAuthGuard)
   @Get()
-  getAllAccounts(@currentUser() user: any) {
+  getAllAccounts(@currentUser() user: userType) {
     return this.accountService.getAllAccounts(user);
   }
 
@@ -49,7 +61,7 @@ export class AccountController {
    */
   @UseGuards(SharedAuthGuard)
   @Get('defaultAcc')
-  getDefault(@currentUser() user: any) {
+  getDefault(@currentUser() user: userType) {
     return this.accountService.getDefault(user);
   }
 
@@ -71,7 +83,7 @@ export class AccountController {
   @UseGuards(SharedAuthGuard)
   @Post('balance/:id')
   async getBalance(
-    @currentUser() user: any,
+    @currentUser() user: userType,
     @Param() param: ObjectIdDTO,
     @Body() body: PINDTO,
   ) {
@@ -90,7 +102,7 @@ export class AccountController {
    */
   @UseGuards(SharedAuthGuard)
   @Post()
-  async add(@Body() body: AddAccountDTO, @currentUser() user: any) {
+  async add(@Body() body: AddAccountDTO, @currentUser() user: userType) {
     await this.cardService.checkCardExist(body.cardNo);
     const card = await this.cardService.addCard(body);
     return this.accountService.addAccount(body, user, card.data);
@@ -103,14 +115,14 @@ export class AccountController {
   @UseGuards(SharedAuthGuard)
   @Patch('limit/:id')
   async updateLimit(
-    @currentUser() user: any,
+    @currentUser() user: userType,
     @Body() body: UpdateLimitDTO,
     @Param() param: ObjectIdDTO,
   ) {
     const account = await this.accountService.getAccountById(
       user._id,
       param.id,
-      EaccountType.OWNER,
+      EAccountType.OWNER,
     );
     return this.accountService.updateLimit(account, body);
   }
@@ -124,12 +136,12 @@ export class AccountController {
   async updatePIN(
     @Body() body: UpdatePinDTO,
     @Param() param: ObjectIdDTO,
-    @currentUser() user: any,
+    @currentUser() user: userType,
   ) {
     const account = await this.accountService.getAccountById(
       user._id,
       param.id,
-      EaccountType.OWNER,
+      EAccountType.OWNER,
     );
     await this.accountService.checkPIN(user, account, body.oldPIN);
     return this.accountService.updatePIN(body, account);
@@ -143,7 +155,7 @@ export class AccountController {
   @Delete(':id')
   async delete(
     @Body() body: PINDTO,
-    @currentUser() user: any,
+    @currentUser() user: userType,
     @Param() param: ObjectIdDTO,
   ) {
     const account = await this.accountService.getAccount(param.id);
@@ -157,11 +169,11 @@ export class AccountController {
    */
   @UseGuards(SharedAuthGuard)
   @Post('sendForgetPINOTP/:id')
-  async sendOTP(@currentUser() user: any, @Param() param: ObjectIdDTO) {
+  async sendOTP(@currentUser() user: userType, @Param() param: ObjectIdDTO) {
     const account = await this.accountService.getAccountById(
       user._id,
       param.id,
-      EaccountType.OWNER,
+      EAccountType.OWNER,
     );
     return this.accountService.forgetOTPMail(user, account);
   }
@@ -173,7 +185,7 @@ export class AccountController {
   @UseGuards(SharedAuthGuard)
   @Post('confirmOTPforgetPIN')
   async confirmOTPforgetPIN(
-    @currentUser() user: any,
+    @currentUser() user: userType,
     @Body() body: TokenAndOTPDTO,
   ) {
     return this.accountService.confirmOTPForgetPIN(body.token, user, body.otp);
@@ -185,14 +197,14 @@ export class AccountController {
    */
   @UseGuards(SharedAuthGuard)
   @Patch('forgetPIN')
-  forgetPIN(@currentUser() user: any, @Body() body: ForgetPinDTO) {
+  forgetPIN(@currentUser() user: userType, @Body() body: ForgetPinDTO) {
     return this.accountService.forgetPIN(user, body.token, body.PIN);
   }
 
   // internal-network (for docker)
 
   @Post('getAccountById')
-  getAccountById(@Body() body: any) {
+  getAccountById(@Body() body: GetAccountByIdDTO) {
     return this.accountService.getAccountById(
       body.userId,
       body.accountId,
@@ -201,37 +213,47 @@ export class AccountController {
   }
 
   @Post('checkDefaultAcc')
-  checkDefaultAcc(@Body() body: any) {
-    return this.accountService.checkDefaultAcc(body.user, body.errMsg);
+  checkDefaultAcc(@Body() body: CheckDefaultAccDTO) {
+    return this.accountService.checkDefaultAcc(
+      body.user as userType,
+      body.errMsg,
+    );
   }
 
   @Post('checkPIN')
-  checkPIN(@Body() body: any) {
-    return this.accountService.checkPIN(body.user, body.account, body.pin);
+  checkPIN(@Body() body: CheckPinDTO) {
+    return this.accountService.checkPIN(
+      body.user as userType,
+      body.account as accountType,
+      body.pin,
+    );
   }
 
   @Post('checkLimit')
-  checkLimit(@Body() body: any) {
-    return this.accountService.checkLimit(body.mount, body.account);
+  checkLimit(@Body() body: CheckLimitDTO) {
+    return this.accountService.checkLimit(
+      body.amount,
+      body.account as accountType,
+    );
   }
 
   @Post('getAccount')
-  getAccount(@Body() body: any) {
+  getAccount(@Body() body: GetAccountDTO) {
     return this.accountService.getAccount(body.accountId);
   }
 
   @Put('updateAccount')
-  updateAccount(@Body() body: any) {
+  updateAccount(@Body() body: UpdateAccountDTO) {
     return this.accountService.updateAccount(body);
   }
 
   @Post('many-by-ids')
-  getManyAccounts(@Body() body: any) {
+  getManyAccounts(@Body() body: GetManyAccountsDTO) {
     return this.accountService.getManyAccounts(body.ids);
   }
 
   @Post('user-accounts')
-  getUserAccounts(@Body() body: any) {
+  getUserAccounts(@Body() body: GetUserAccountsDTO) {
     return this.accountService.getUserAccounts(body.userId);
   }
 }

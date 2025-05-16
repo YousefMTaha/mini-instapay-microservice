@@ -8,7 +8,7 @@ import { MailService } from 'src/utils/email.service';
 import { TransactionService } from '../transaction/transaction.service';
 import { NotificationService } from '../notification/notification.service';
 import bankModel from '../schemas/bank.schema';
-
+import { UserService } from '../services/user.service';
 @Module({
   controllers: [AccountController],
   providers: [
@@ -17,6 +17,7 @@ import bankModel from '../schemas/bank.schema';
     MailService,
     TransactionService,
     NotificationService,
+    UserService,
   ],
   imports: [accountModel, cardModel, bankModel],
 })
