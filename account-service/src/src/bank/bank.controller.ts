@@ -1,5 +1,6 @@
-import { Controller, Get, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
 import { BankService } from './bank.service';
+import { BankIdDTO } from './dto/get-bank-id.dto';
 
 @Controller('bank')
 export class BankController {
@@ -8,5 +9,10 @@ export class BankController {
   @Get()
   getAllBanks() {
     return this.bankService.getBanks();
+  }
+
+  @Post('getBankById')
+  getBankById(@Body() body: BankIdDTO) {
+    return this.bankService.checkBankId(body.bankId);
   }
 }

@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import { Bank } from '../schemas/bank.schema';
 
 @Injectable()
@@ -12,5 +12,7 @@ export class BankService {
     return await this._bankModel.find();
   }
 
-  // async checkBankId() {}
+  async checkBankId(id: Types.ObjectId) {
+    return await this._bankModel.findById(id);
+  }
 }
