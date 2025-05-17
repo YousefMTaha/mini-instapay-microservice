@@ -25,7 +25,6 @@ import {
   PINDTO,
 } from 'src/utils/common/common.dto';
 import { EAccountType } from 'src/utils/Constants/system.constants';
-// DTO imports for internal API endpoints
 import { GetAccountByIdDTO } from './dto/get-account-by-id.dto';
 import { CheckDefaultAccDTO } from './dto/check-default-acc.dto';
 import { CheckPinDTO } from './dto/check-pin.dto';
@@ -34,7 +33,6 @@ import { GetAccountDTO } from './dto/get-account.dto';
 import { UpdateAccountDTO } from './dto/update-account.dto';
 import { GetManyAccountsDTO } from './dto/get-many-accounts.dto';
 import { GetUserAccountsDTO } from './dto/get-user-accounts.dto';
-// Import types
 import { userType } from '../schemas/user.schema';
 import { accountType } from '../schemas/account.schema';
 

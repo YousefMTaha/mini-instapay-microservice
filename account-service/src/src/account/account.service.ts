@@ -148,11 +148,11 @@ export class AccountService {
     errorMsg: string,
   ): Promise<accountType> {
     if (!user.defaultAcc) throw new NotFoundException(accountErrMsg(errorMsg));
-    
+
     const account = await this._accountModel.findById(user.defaultAcc);
     console.log(user.defaultAcc);
-    console.log({accounts:account});
-    
+    console.log({ accounts: account });
+
     return account;
   }
 
@@ -264,67 +264,68 @@ export class AccountService {
                 `,
     });
 
+    const token = this.JwtService.sign(
+      { _id: user._id, accountId: account._id },
+      { secret: this.configService.get<string>('TOKEN_FORGET_PIN') },
+    );
+
     return {
       message: 'OTP sent to your mail',
       status: true,
+      token,
     };
   }
 
   async confirmOTPForgetPIN(token: string, user: userType, otp: string) {
-    const foundAuthType = user.authTypes.find(
-      (ele) =>
-        ele.authFor == authForOptions.FORGET_PIN && ele.type === authTypes.CODE,
-    );
+    const { accountId } = this.JwtService.verify(token, {
+      secret: this.configService.get<string>('TOKEN_FORGET_PIN'),
+    });
 
-    if (!foundAuthType) {
-      throw new BadRequestException('Invalid request, send OTP first');
+    for (let type of user.authTypes) {
+      if (
+        type.authFor === authForOptions.FORGET_PIN &&
+        type.type === authTypes.CODE
+      ) {
+        if (!compareSync(otp.toString(), type.value || '1'))
+          throw new BadRequestException('Invalid OTP');
+
+        if (type.expireAt < new Date())
+          throw new BadRequestException('OTP Expired');
+
+        type.value = undefined;
+        break;
+      }
     }
 
-    if (foundAuthType.expireAt < new Date()) {
-      throw new BadRequestException('OTP expired request new one');
-    }
-
-    if (!compareSync(otp, foundAuthType.value)) {
-      throw new BadRequestException('Invalid OTP');
-    }
-
-    const forgetToken = this.JwtService.sign(
-      {},
-      {
-        secret: this.configService.get<string>('FORGET_PIN_TOKEN'),
-        expiresIn: '10m',
-      },
+    const resToken = this.JwtService.sign(
+      { accountId: accountId },
+      { secret: this.configService.get<string>('TOKEN_CONFIRM_OTP_FORGET') },
     );
 
     return {
-      message: 'valid OTP',
+      message: 'Done',
       status: true,
-      data: { token: forgetToken },
+      token: resToken,
     };
   }
 
   async forgetPIN(user: userType, token: string, PIN: string) {
-    try {
-      this.JwtService.verify(token, {
-        secret: this.configService.get<string>('FORGET_PIN_TOKEN'),
-      });
+    const { accountId } = this.JwtService.verify(token, {
+      secret: this.configService.get<string>('TOKEN_CONFIRM_OTP_FORGET'),
+    });
 
-      const account = await this._accountModel.findOne({
-        userId: user._id,
-      });
+    const account = await this.getAccountById(
+      user._id,
+      accountId,
+      EAccountType.OWNER,
+    );
 
-      if (!account) throw new NotFoundException('account not found');
+    await account.updateOne({ PIN: hashSync(PIN, 10) });
 
-      account.PIN = hashSync(PIN, 9);
-      await account.save();
-
-      return {
-        message: 'PIN Updated successfully',
-        status: true,
-      };
-    } catch (error) {
-      throw new BadRequestException('Invalid token or expired');
-    }
+    return {
+      message: 'PIN Updated successfully',
+      status: true,
+    };
   }
 
   async updateAccount(body: UpdateAccountDTO) {
