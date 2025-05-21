@@ -3,20 +3,20 @@ $namespace = "instapay"
 
 # ConfigMap files
 $configMapFiles = @(
-    "k8s/user-service-configmap.yaml",
-    "k8s/account-service-configmap.yaml",
-    "k8s/notification-service-configmap.yaml",
-    "k8s/mail-service-configmap.yaml",
-    "k8s/transaction-service-configmap.yaml"
+    "user-service-configmap.yaml",
+    "account-service-configmap.yaml",
+    "notification-service-configmap.yaml",
+    "mail-service-configmap.yaml",
+    "transaction-service-configmap.yaml"
 )
 
 # Deployment files
 $deploymentFiles = @(
-    "k8s/user-service-deployment.yaml",
-    "k8s/account-service-deployment.yaml",
-    "k8s/notification-service-deployment.yaml",
-    "k8s/mail-service-deployment.yaml",
-    "k8s/transaction-service-deployment.yaml"
+    "user-service-deployment.yaml",
+    "account-service-deployment.yaml",
+    "notification-service-deployment.yaml",
+    "mail-service-deployment.yaml",
+    "transaction-service-deployment.yaml"
 )
 
 # Apply ConfigMaps first
