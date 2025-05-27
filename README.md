@@ -1,105 +1,127 @@
-# InstaPayApp
+# InstaPayApp Backend
 
-<div align="center">
-  <h3>A Microservices-Based Payment Platform</h3>
-</div>
+## Brief Description
 
-## Overview
+InstaPayApp is a microservices-based payment platform backend built with NestJS and TypeScript. The system provides secure financial transaction capabilities, user management, and real-time notifications through a distributed architecture using MongoDB for data persistence.
 
-InstaPayApp is a modern payment platform built using a microservices architecture, containerized with Docker, and orchestrated with Kubernetes. The platform enables secure financial transactions between users with features like account management, transaction processing, and notifications.
+## Backend Functionality
 
-## Key Features
+- **User Authentication & Management**: User registration, login, and profile management
+- **Account Services**: Bank account and card management with balance tracking
+- **Transaction Processing**: Secure money transfers between accounts with validation
+- **Notification System**: Real-time notifications for account activities and transactions
+- **Mail Services**: Email delivery system for user communications
+- **Error Handling**: Consistent error propagation across all microservices
 
-- 👤 **User Management**: Registration, authentication, and profile management
-- 💳 **Account Services**: Create and manage bank accounts and cards
-- 💸 **Transaction Processing**: Send and receive money securely
-- 📧 **Notifications**: Real-time alerts for account activities
-- 🔄 **Error Propagation**: Consistent error handling across microservices
 
-## Tech Stack
+## Architecture
 
-- **Backend**: NestJS (TypeScript)
-- **Database**: MongoDB
-- **Containerization**: Docker & Docker Compose
-- **Orchestration**: Kubernetes
-- **API Gateway**: NGINX
+### System Architecture Diagram
+
+```
+┌─────────────┐     ┌─────────────┐      ┌─────────────┐
+│   Client    │────▶│ NGINX Proxy │────▶│   Internet  │
+│Application  │     │(Port 3000)  │      │             │
+└─────────────┘     └─────────────┘      └─────────────┘
+                           │
+                           ▼
+       ┌─────────────────────────────────────────────────────┐
+       │                API Gateway                          │
+       └─────────────────────────────────────────────────────┘
+                           │
+       ┌───────────────────┼───────────────────────────────┐
+       │                   │                               │
+       ▼                   ▼                               ▼
+┌─────────────┐     ┌─────────────┐              ┌─────────────┐
+│User Service │◀───▶│Account Svc │◀───────────▶│Transaction  │
+│(Port 3001)  │     │(Port 3004)  │              │Service      │
+└─────────────┘     └─────────────┘              │(Port 3005)  │
+       │                   │                     └─────────────┘
+       │                   │                           │
+       ▼                   ▼                           ▼
+┌─────────────┐      ┌─────────────┐              ┌─────────────┐
+│Notification │◀───▶│ Mail Service│◀───────────▶│   MongoDB   │
+│Service      │      │(Port 3002)  │              │  Database   │
+│(Port 3003)  │      └─────────────┘              └─────────────┘
+└─────────────┘
+```
+
+### Service Communication
+
+- **Synchronous**: HTTP/REST APIs between services
+- **Authentication**: JWT tokens for service-to-service communication
+- **Error Handling**: Consistent error propagation across all services
+- **Load Balancing**: NGINX reverse proxy with round-robin distribution
+
+---
+
 
 ## Project Structure
 
-The application is composed of several microservices:
+The backend consists of the following microservices:
 
-- **User Service**: Handles user registration, authentication, and management
-- **Account Service**: Manages bank accounts, cards, and balances
-- **Transaction Service**: Processes financial transactions between accounts
-- **Notification Service**: Manages user notifications
-- **Mail Service**: Handles email delivery
-- **API Gateway (NGINX)**: Routes requests to appropriate services
-- **MongoDB**: Document database for persistent storage
-
-## Error Handling
-
-The platform implements a consistent error handling mechanism across microservices:
-
-- Each service properly extracts and propagates error messages from other services
-- Original error messages are preserved throughout the microservice chain
-- HTTP status codes are maintained along with descriptive error messages
-- BadRequestExceptions, NotFoundExceptions, and other NestJS exceptions are properly handled between services
-
-### Implementation Details
-
-Our error handling implementation uses a unified approach across all services:
-
-```typescript
-// Consistent error handling pattern in all service-to-service calls
-catchError((error) => {
-  const errorMessage = error.response?.data?.message || error.message;
-  throw new BadRequestException(errorMessage);
-})
+```
+├── user-service/          # User authentication and management
+├── account-service/       # Bank accounts and cards management
+├── transaction-service/   # Financial transaction processing
+├── notification-service/  # Real-time notifications
+├── mail-service/         # Email delivery system
+├── nginx/                # API Gateway for request routing
+└── k8s/                  # Kubernetes deployment configurations
 ```
 
-This ensures that when services communicate, errors like "invalid PIN" from the account service are passed directly to the client instead of generic error messages like "Request failed with status code 400."
+Each service is independently deployable and communicates through HTTP APIs, ensuring scalability and maintainability.
 
-## Quick Start
+## How to Use with Docker Compose
 
 ### Prerequisites
+- Docker and Docker Compose installed
 
-- Docker and Docker Compose
-- Git
+### Development Environment
+```bash
+# Start all services in development mode
+docker-compose -f docker-compose.dev.yml up
 
-### Installation & Setup
+# Start services in detached mode
+docker-compose -f docker-compose.dev.yml up -d
 
-1. Clone the repository:
+# Stop all services
+docker-compose -f docker-compose.dev.yml down
+```
 
-   ```bash
-   git clone https://github.com/yourusername/instapay.git
-   cd instapay
-   ```
+### Production Environment
+```bash
+# Start all services in production mode
+docker-compose -f docker-compose.prod.yml up -d
+```
 
-2. Start the development environment:
+The API Gateway will be available at `http://localhost:3000`
 
-   ```bash
-   docker-compose -f docker-compose.dev.yml up
-   ```
+## How to Use with Kubernetes
 
-3. Access the application:
-   - API Gateway: http://localhost:3000
+### Prerequisites
+- Kubernetes cluster running
+- kubectl configured
 
-## Kubernetes Deployment
+### Deployment Steps
+```bash
+# Navigate to Kubernetes configurations
+cd k8s
 
-For Kubernetes deployment:
+# Apply all Kubernetes manifests
+kubectl apply -f .
 
-1. Check out the Kubernetes configurations:
+# Check deployment status
+kubectl get pods
+kubectl get services
 
-   ```bash
-   cd k8s
-   ```
+# Access the application through the configured ingress or service
+```
 
-2. Follow the instructions in [Kubernetes Guide](k8s/K8S_README.md)
+For detailed Kubernetes setup instructions, refer to the configurations in the `k8s/` directory.
 
-## Detailed Documentation
+## API Reference
 
-For comprehensive documentation on setting up, developing, and deploying the application, please refer to:
+Complete API documentation with request/response examples and authentication details:
 
-- [Containerization & Orchestration Guide](DOCKER_KUBERNETES_README.md)
-- [API Documentation](https://documenter.getpostman.com/view/25674968/2sB2qUnQcK)
-- [Development Guide](docs/DEVELOPMENT.md)
+**[Postman API Documentation](https://documenter.getpostman.com/view/25674968/2sB2qUnQcK)**
